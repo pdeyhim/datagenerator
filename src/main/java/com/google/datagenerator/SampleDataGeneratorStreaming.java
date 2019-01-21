@@ -194,14 +194,14 @@ public class SampleDataGeneratorStreaming {
 
         Pipeline pipeline = Pipeline.create(options);
 
-        PCollection<String> actor1 = pipeline.apply("ActorTrigger1", GenerateSequence.from(0L).withRate(options.getQps(), Duration.standardSeconds(1L))).apply("GenerateActor1Data", ParDo.of(new SamplerString("gs://deyhim-sandbox/sampler/actor4.json")));
-        PCollection<String> actor2 = pipeline.apply("ActorTrigger2", GenerateSequence.from(0L).withRate(options.getQps(), Duration.standardSeconds(1L))).apply("GenerateActor2Data", ParDo.of(new SamplerString("gs://deyhim-sandbox/sampler/actor2.json")));
-        PCollection<String> actor3 = pipeline.apply("ActorTrigger3", GenerateSequence.from(0L).withRate(options.getQps(), Duration.standardSeconds(1L))).apply("GenerateActor3Data", ParDo.of(new SamplerString("gs://deyhim-sandbox/sampler/actor3.json")));
+        //PCollection<String> actor1 = pipeline.apply("ActorTrigger1", GenerateSequence.from(0L).withRate(options.getQps(), Duration.standardSeconds(1L))).apply("GenerateActor1Data", ParDo.of(new SamplerString("gs://deyhim-sandbox/sampler/actor4.json")));
+        //PCollection<String> actor2 = pipeline.apply("ActorTrigger2", GenerateSequence.from(0L).withRate(options.getQps(), Duration.standardSeconds(1L))).apply("GenerateActor2Data", ParDo.of(new SamplerString("gs://deyhim-sandbox/sampler/actor2.json")));
+        PCollection<String> actor3 = pipeline.apply("ActorTrigger3", GenerateSequence.from(0L).withRate(options.getQps(), Duration.standardSeconds(1L))).apply("GenerateActor3Data", ParDo.of(new SamplerString(options.getSchemaLocation())));
 
 
-        PCollectionList<String> actors = PCollectionList.of(actor1).and(actor2).and(actor3);
-        PCollection<String> actorsFlattened = actors.apply(Flatten.<String>pCollections());
-        PCollection<String> actorsDataWindow = actorsFlattened.apply("WindowData", Window.into(FixedWindows.of(DurationUtils.parseDuration(options.getWindowDuration()))));
+        //PCollectionList<String> actors = PCollectionList.of(actor1).and(actor2).and(actor3);
+       // PCollection<String> actorsFlattened = actors.apply(Flatten.<String>pCollections());
+        PCollection<String> actorsDataWindow = actor3.apply("WindowData", Window.into(FixedWindows.of(DurationUtils.parseDuration(options.getWindowDuration()))));
 
         actorsDataWindow.apply("WriteToPubSub",PubsubIO.writeStrings().to(options.getOutputTopic()));
         return pipeline.run();

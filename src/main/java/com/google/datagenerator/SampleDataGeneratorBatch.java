@@ -182,7 +182,7 @@ public class SampleDataGeneratorBatch {
 
         Pipeline pipeline = Pipeline.create(options);
 
-        PCollection<String> actor = pipeline.apply("ActorTrigger1", GenerateSequence.from(0L).withRate(options.getQps(), Duration.standardSeconds(1L))).apply("GenerateActor1Data", ParDo.of(new SamplerString("gs://deyhim-sandbox/sampler/actor1.json")));
+        PCollection<String> actor = pipeline.apply("ActorTrigger1", GenerateSequence.from(0L).withRate(options.getQps(), Duration.standardSeconds(1L))).apply("GenerateActor1Data", ParDo.of(new SamplerString(options.getSchemaLocation())));
         PCollection<String> actorsDataWindow = actor.apply("WindowData", Window.into(FixedWindows.of(DurationUtils.parseDuration(options.getWindowDuration()))));
         actorsDataWindow.apply("WriteToGCS", TextIO.write().withWindowedWrites().withNumShards(options.getNumShards()).to(
                         new WindowedFilenamePolicy(

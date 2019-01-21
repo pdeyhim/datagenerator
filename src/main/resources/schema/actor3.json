@@ -1,0 +1,12 @@
+[
+  {"name": "user_id","class":"foreign-key","size": 10000,"skew":3},
+  {"name": "actor", "class":"string", "dist":{"actor1":3}},
+  {"name": "ts", "class":"current-time"},
+  {"name": "v1", "class":"sin"},
+  {"name": "v2", "class": "random-walk"},
+  {"name": "v3", "class": "random-walk","s": 3},
+  {"name": "v4", "class": "random-walk", "precision": {"class": "gamma", "dof": 3}},
+  {"name": "v5", "class": "gamma", "alpha": 0.3, "beta": 0.3},
+  {"name": "v6", "class": "random-walk", "mean":300, "sd":1},
+  {"name": "location","class": "zip","near": "37.77,-122.41","milesFrom": 1, "fields":"latitude, longitude, zip"}
+]
