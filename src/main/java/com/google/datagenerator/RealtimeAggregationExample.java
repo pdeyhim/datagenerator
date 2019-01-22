@@ -15,9 +15,7 @@ import org.apache.beam.sdk.io.TextIO;
 import org.apache.beam.sdk.io.gcp.bigquery.BigQueryIO;
 import org.apache.beam.sdk.io.gcp.pubsub.PubsubIO;
 import org.apache.beam.sdk.io.gcp.pubsub.PubsubMessage;
-import org.apache.beam.sdk.options.PipelineOptions;
-import org.apache.beam.sdk.options.PipelineOptionsFactory;
-import org.apache.beam.sdk.options.StreamingOptions;
+import org.apache.beam.sdk.options.*;
 import org.apache.beam.sdk.transforms.*;
 import org.apache.beam.sdk.transforms.windowing.*;
 import org.apache.beam.sdk.transforms.windowing.Window;
@@ -46,23 +44,30 @@ import org.slf4j.LoggerFactory;
 --project=deyhim-sandbox \
 --stagingLocation=gs://deyhim-sandbox/dataflow/pipelines/realtimeagg/staging \
 --tempLocation=gs://deyhim-sandbox/dataflow/pipelines/realtimeagg/temp \
---runner=DataflowRunner"
+--runner=DataflowRunner \
+--inputTopic=projects/deyhim-sandbox/topics/deyhim-sandbox-to-pubsub \
+--bigQueryTable=demo1.random_actors_agg_df"
  */
 
 public class RealtimeAggregationExample {
 
     public interface Options extends PipelineOptions, StreamingOptions {
+        @Description("The Cloud Pub/Sub topic to read from.")
+        @Validation.Required
+        ValueProvider<String> getInputTopic();
+        void setInputTopic(ValueProvider<String> value);
+
+        @Description("BigQuery table to write to")
+        @Validation.Required
+        ValueProvider<String> getBigQueryTable();
+        void setBigQueryTable(ValueProvider<String> value);
     }
 
     private static final Logger LOG = LoggerFactory.getLogger(RealtimeAggregationExample.class);
 
     public static void main(String argv[]) {
 
-
-
-
         Options options = PipelineOptionsFactory.fromArgs(argv).withValidation().as(Options.class);
-
         run(options).run();
     }
 
@@ -71,9 +76,7 @@ public class RealtimeAggregationExample {
         @DoFn.ProcessElement
         public void processElement(ProcessContext c) throws IOException {
             String entry = c.element();
-            //System.out.println(entry);
             Event event = new Gson().fromJson(entry,Event.class);
-            //System.out.println(event.getLocation().getZip());
             c.output(event);
         }
     }
@@ -96,10 +99,8 @@ public class RealtimeAggregationExample {
         public void processElement(ProcessContext c) {
             KV<String,Double> kv = c.element();
 
-            DateTimeFormatter FOMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");            //Local date time instance
+            DateTimeFormatter FOMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
             LocalDateTime localDateTime = LocalDateTime.now();
-
-            //Get formatted String
             String ldtString = FOMATTER.format(localDateTime);
 
             TableRow row = new TableRow()
@@ -126,14 +127,8 @@ public class RealtimeAggregationExample {
     public static Pipeline run(Options options) {
         Pipeline pipeline = Pipeline.create(options);
 
-
-        final List<String> lines = Arrays.asList(
-                "{'actor':'test',  'ts':'sfadsfsd',  'location':{'zip':'94109','latitude':'12' , 'longitude':'13'}, 'user_id':'100', v1:2.0 }",
-                "{'actor':'test',  'ts':'sfadsfsd',  'location':{'zip':'94109','latitude':'12' , 'longitude':'13'}, 'user_id':'100' ,v1:3.0 }");
-        //.apply("some data", Create.of(lines)).setCoder(StringUtf8Coder.of())
-
         PCollection<TableRow> pubSubMessages = pipeline
-                .apply("ReadFromPubSub", PubsubIO.readStrings().fromTopic("projects/deyhim-sandbox/topics/deyhim-sandbox-to-pubsub"))
+                .apply("ReadFromPubSub", PubsubIO.readStrings().fromTopic(options.getInputTopic()))
                 .apply("TransformToEvent", ParDo.of(new EmitEvent()))
                 .apply("GetV1",ParDo.of(new ExtractV1Field()))
                 .apply("Window",Window.<KV<String,Double>>into( new GlobalWindows())
@@ -144,10 +139,9 @@ public class RealtimeAggregationExample {
                 .apply("SUM",Sum.doublesPerKey())
                 .apply("convertToTableRow",ParDo.of(new ConvertToTableRow()));
 
-        //pubSubMessages.apply("write",TextIO.write().withWindowedWrites().to("out").withNumShards(1));
         pubSubMessages.apply("WriteToBQ",BigQueryIO.writeTableRows()
                 .withSchema(createTableSchema("user_id:STRING,v1_total:FLOAT,ts:TIMESTAMP"))
-                .to("demo1.random_actors_agg_df")
+                .to(options.getBigQueryTable())
                 .withCreateDisposition(BigQueryIO.Write.CreateDisposition.CREATE_IF_NEEDED)
                 .withWriteDisposition(BigQueryIO.Write.WriteDisposition.WRITE_APPEND));
         return pipeline;
